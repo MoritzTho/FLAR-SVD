@@ -1,5 +1,3 @@
-# import argparse
-# import ast
 import gc
 import os
 import random
@@ -12,15 +10,14 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-# import pandas as pd
-# from timm.models import SwinTransformer
-
-# os.chdir("/workspace/")
-# import io
-
-
-def main(inp_shape, in_feats, out_feats, dev, csv_file, counter):  # df: pd.DataFrame
-    # 768, 384 -> 2304, 576 -> 3072, 614
+def main(inp_shape, in_feats, out_feats, dev, csv_file, counter):
+    """
+    Evaluates latency characteristics of linear layers at different compression levels.
+    
+    First measures the baseline latency of an uncompressed linear layer, then establishes
+    a lower bound with a minimal rank-1 compressed version. Finally, evaluates multiple
+    compression ratios and records their normalized performance relative to these bounds.
+    """
     file_name = None
 
     # Uncompressed model
@@ -30,10 +27,8 @@ def main(inp_shape, in_feats, out_feats, dev, csv_file, counter):  # df: pd.Data
     gc.collect()
     torch.cuda.empty_cache()
 
-    # run_command(f'echo -e "\nEvaluating...    Input shape: {inp_shape}"', file_name)
     print("Evaluating...    Input shape:", inp_shape)
     result, _ = eval_layer("Uncompressed", counter, dev)
-    # print(result.split("\n")[2])
     og_lat = float(result.split("\n")[2].split("mean = ")[1].split(" ms")[0])
 
     # Minimal rank setup
@@ -48,24 +43,24 @@ def main(inp_shape, in_feats, out_feats, dev, csv_file, counter):  # df: pd.Data
 
     print("Layer Compressed to rank 1 ...")
     result, _ = eval_layer(f"Rank: {rank}", counter, dev)
-    # print(result.split("\n")[2])
     min_lat = float(result.split("\n")[2].split("mean = ")[1].split(" ms")[0])
+    
+    # Calculate the equivalent rank for compression
+    # This is the rank that would give a similar number of parameters as the original layer
+    eq_rank = (in_feats * out_feats) / (in_feats + out_feats)
 
     # Now, evaluate the different possible ranks
-
-    f_rank = (in_feats * out_feats) / (in_feats + out_feats)
-
     min_val = random.choice(range(10, 51, 10))
     step = random.choice((5, 10))
     for comp_rate in reversed(range(min_val, 101, step)):
         # # Optionally enforce rank to be a multiple of 8
         # if random.choice((0, 1)):
-        #     rank = int(f_rank * comp_rate / 100)
+        #     rank = int(eq_rank * comp_rate / 100)
         # else:
-        #     rank = int(np.round((f_rank * comp_rate / 100) / 8) * 8)
+        #     rank = int(np.round((eq_rank * comp_rate / 100) / 8) * 8)
 
-        # # Enforce rank to be a multipleof 8
-        rank = int(np.round((f_rank * comp_rate / 100) / 8) * 8)
+        # Enforce rank to be a multiple of 8
+        rank = int(np.round((eq_rank * comp_rate / 100) / 8) * 8)
 
         model = nn.Sequential(
             nn.Linear(in_feats, rank, bias=False), nn.Linear(rank, out_feats)
@@ -75,18 +70,11 @@ def main(inp_shape, in_feats, out_feats, dev, csv_file, counter):  # df: pd.Data
         gc.collect()
         torch.cuda.empty_cache()
 
-        # print(f"Layer Compressed to rank: {rank} ({comp_rate}%)...")
+        print(f"Layer Compressed to rank: {rank} ({comp_rate}%)...")
         result, _ = eval_layer(f"Rank: {rank} ({comp_rate}%)", counter, dev)
         # print(result.split("\n")[2])
         comp_lat = float(result.split("\n")[2].split("mean = ")[1].split(" ms")[0])
 
-        # df.loc[len(df)] = {
-        #     "Input shape": inp_shape,
-        #     "Out_feats": out_feats,
-        #     "Rank": rank,
-        #     "Lat_recovery": comp_lat / og_lat
-        # }
-        # df.to_csv(csv_file, index=False)
         output = (comp_lat - min_lat) / (og_lat - min_lat)
         with open(csv_file, "a") as f:
             f.write(
@@ -113,6 +101,9 @@ def suppress_stdout_stderr():
 
 
 def torch2onnx(model, input_shape, dev, counter):
+    """
+    Export a PyTorch model to ONNX format.
+    """
     with suppress_stdout_stderr():
         torch.onnx.export(
             model,
@@ -127,26 +118,34 @@ os.openpty
 
 
 def run_command(command, file_name=None):
+    """
+    Run a shell command and return its output.
+    Args:
+        command (str): The shell command to run.
+        file_name (str, optional): If provided, the output will be appended to this file.
+    Returns:
+        tuple: A tuple containing the standard output and standard error of the command.
+    """
     if file_name is not None:
         command += f" >> {file_name}"
     result = subp.run(command, shell=True, stdout=subp.PIPE, stderr=subp.PIPE)
-    print(result.stdout.decode("utf-8"))
+    # print(result.stdout.decode("utf-8"))
     return result.stdout.decode("utf-8"), result.stderr.decode("utf-8")
     # Example usage:        stdout, stderr = run_command('ls -l')
 
 
 def eval_layer(title, counter, dev):
+    """
+    Evaluate an individual layer saved as ONNX file using trtexec.
+    """
     # run_command(f'echo -e "{title}"')
     print(title)
-    command = (f"/usr/src/tensorrt/bin/trtexec --onnx=/workspace/tmp_{counter}.onnx" # --fp16
+    return run_command(
+        f"trtexec --onnx=/workspace/tmp_{counter}.onnx --fp16"
         # f"trtexec --onnx=/workspace/tmp_{counter}.onnx"
         + " --noDataTransfers --useCudaGraph --useSpinWait"
         # + " --iterations=15 --warmUp=500 --duration=5" +
-        + f" --device={dev}| tail -n 12")
-    print(command)
-    return run_command(
-        command
-        , "debug_text.txt"
+        + f" --device={dev}| tail -n 12"
     )
 
 
@@ -154,7 +153,6 @@ if __name__ == "__main__":
     batch_size = 1
     dev = torch.cuda.current_device()
 
-    # df = pd.DataFrame(columns=["Input shape", "Out_feats", "Rank", "Lat_recovery"])
     csv_file = "/workspace/layer_wise_latency.csv"
     base_csv_file = csv_file
     counter = 0
@@ -163,7 +161,6 @@ if __name__ == "__main__":
         counter += 1
 
     with open(csv_file, "w") as f:
-        # f.write("Input_shape,Out_feats,Rank,Og_lat,Latency,Min_lat,Lat_recovery,\n")
         f.write(
             "Batch_dim,Patch_dim,In_feats,Out_feats,Rank,"
             + "Og_lat,Latency,Min_lat,Lat_recovery,\n"
@@ -173,7 +170,8 @@ if __name__ == "__main__":
         a = random.randint(0, 3)
         input_shape = [
             batch_size * 2 ** random.randint(0, 6 - a),  # Random power of 2 up to 64
-            random.choice((7, 8, 12, 14, 16, 30, 32)) ** 2,  # Square power of patch_size
+            random.choice((7, 8, 12, 14, 16, 30, 32))
+            ** 2,  # Square power of patch_size
             random.choice((96, 128)) * 2**a,  # Multiple of 96, 128
         ]
         input_shape[1] += random.choice((0, 1))
