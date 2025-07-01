@@ -210,10 +210,10 @@ You may install the requirements.txt file given in this repo in any environment,
 ```bash
 cd docker
 docker build -t flar_svd:torch2.2.1 .
-docker run -m path_to_dataset_on_system:/dataset -m ./:/workspace flar_svd:torch2.2.1
 ```
 after building you may run the container using:
 ```bash
+cd ..  # return to main folder
 docker run --gpus 'all' -it --name="FLAR_SVD" --mount source=$YOUR_DATASETFOLDER,target=/data,type=bind,readonly --mount source=./,target=/workspace,type=bind flar_svd:torch2.2.1
 ```
 
