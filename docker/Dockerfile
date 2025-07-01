@@ -13,7 +13,7 @@ RUN apt update -y
 RUN apt-get update -y
 RUN mkdir -p ./tmp
 
-COPY docker/requirements.txt ./tmp/requirements.txt
+COPY ./requirements.txt ./tmp/requirements.txt
 WORKDIR ./tmp
 
 ENV FORCE_CUDA="1" \
@@ -23,6 +23,7 @@ RUN pip install -r ./requirements.txt
 # overwrite triton install (was the only bugfree one.)
 RUN pip install triton==2.1.0
 RUN apt-get update && apt-get install ffmpeg libsm6 libxext6 wget -y
-COPY docker/install_prebuild_ssm.sh ./install_prebuild_ssm.sh
+COPY ./install_prebuild_ssm.sh ./install_prebuild_ssm.sh
 RUN chmod +x ./install_prebuild_ssm.sh
 RUN ./install_prebuild_ssm.sh
+WORKDIR /workspace
