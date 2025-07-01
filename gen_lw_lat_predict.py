@@ -7,6 +7,7 @@ This script trains a Random Forest model to predict latency recovery
 for low-rank weight operations based on various input features.
 """
 
+import glob
 import pandas as pd
 import numpy as np
 import joblib
@@ -18,7 +19,12 @@ from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error
 
 def load_data(filepath):
     """Load and prepare the dataset."""
-    df = pd.read_csv(filepath)
+    # df = pd.read_csv(filepath)        # Load a single CSV file
+
+    # List of CSV files
+    csv_files = glob.glob(filepath)
+    # Read and concatenate all CSV files
+    df = pd.concat([pd.read_csv(f) for f in csv_files], ignore_index=True)
     print(f"Loaded dataset with {df.shape[0]} rows and {df.shape[1]} columns")
     return df
 
@@ -75,8 +81,7 @@ def save_model(model, filepath):
 
 def main():
     """Main execution function."""
-    # Configuration
-    input_file = '/workspace/layer_wise_latency.csv'
+    input_file = '/workspace/layer_wise_latency*.csv'
     output_model = '/workspace/rf_model_k_mult_8.pkl'
     
     # Process pipeline
