@@ -223,7 +223,11 @@ You may replicate our predictor following the same procedure or download our pre
 
 Train a latency predictor on Nvidia Hardware:
 ```
-Commands for latency predictor
+# Run to obtain csv with layer-wise latency measurements.
+python trtexec_layer_eval_v2.py
+
+# Run to generate .pkl latency predictor
+python gen_lw_lat_predict.py
 ```
 
 #### Dataset Preparation
