@@ -360,6 +360,8 @@ class FLAR_SVDSearch(BaseSearch):
         if self.ratio_target:
             # Interpolate ranks to ensure target ratio is met
             compression_dict = self._interpolate_ranks(compression_dict, model)
+        else:
+            compression_dict = self._basic_latency_rank_adjustment(compression_dict, model)
 
         return compression_dict
 
@@ -375,6 +377,8 @@ class FLAR_SVDSearch(BaseSearch):
         if self.ratio_target:
             # Interpolate ranks to ensure target ratio is met
             compression_dict = self._interpolate_ranks(compression_dict, model)
+        else:
+            compression_dict = self._basic_latency_rank_adjustment(compression_dict, model)
 
         return compression_dict
 
@@ -484,6 +488,19 @@ class FLAR_SVDSearch(BaseSearch):
         self.threshold = feat_mse/n_layers if n_layers > 0 else 0
         print(f"Number of layers in model: {n_layers}")
         print(f"Initial error threshold: {self.threshold}\nLast feat error: {feat_mse.item()}")
+
+    def _basic_latency_rank_adjustment(self, layerwise_rank_dict, model):
+        print("Adjusting ranks based on latency predictor...")
+        for layer_name, rank in layerwise_rank_dict.items():
+            if rank != -1:
+                # Filter out those ranks that do not comply with our requirements.
+                if layer_name in self.lrd_method.input_shapes:
+                    input_shape = self.lrd_method.input_shapes[layer_name]
+                    lat_predict = self._get_latency_pred(input_shape, layerwise_rank_dict[layer_name])
+                    # Check if the predicted latency lower than the uncompressed layer
+                    if lat_predict.item() >= 1.0 or lat_predict.item() <= 0:
+                        layerwise_rank_dict[layer_name] = -1
+        return layerwise_rank_dict
 
     def _interpolate_ranks(
         self, layerwise_rank_dict: Dict[str, int], model: nn.Module
