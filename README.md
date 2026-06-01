@@ -219,7 +219,7 @@ docker run --gpus 'all' -it --name="FLAR_SVD" --mount source=$YOUR_DATASETFOLDER
 
 #### Latency Predictor
 The latency predictor cannot be created with the trt pip package. Instead, we used the nvidia pytorch image, to gather the necessary data and train it.
-You may replicate our predictor following the same procedure or download our pretrained checkpoint [here](tbd).
+You may replicate our predictor following the same procedure or download our pretrained checkpoint [here](https://drive.google.com/file/d/1zPOki5mb_eVCqpnpS2kBEyImVVqm2k32/view?usp=share_link).
 
 Train a latency predictor on Nvidia Hardware:
 ```
